@@ -4,29 +4,24 @@ import numpy as np
 import pickle
 
 from sklearn.model_selection import train_test_split
-from descriptors import ORB_Descriptor, SIFT_Descriptor, BRIEF_Descriptor
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.naive_bayes import GaussianNB
+from descriptors import ORB_Descriptor, SIFT_Descriptor
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.ensemble import AdaBoostClassifier
 
 
 class Classifier:
     def __init__(
-        self,
-        descriptor=ORB_Descriptor,
-        nfeatures=500,
-        classifier=MultinomialNB(),
+        self, descriptor=ORB_Descriptor(), classifier=MultinomialNB(),
     ):
-        self.descriptor = descriptor()
-        self.nfeatures = nfeatures
+        self.descriptor = descriptor
         self.classifier = classifier
         self.model = None
 
     def fit(self, path_to_dir_with_obj, path_to_dir_without_obj):
 
         try:
-            class RefitRequired(BaseException): pass
+
+            class RefitRequired(BaseException):
+                pass
 
             with open("fitted_model.pickle", "rb") as f:
                 model = pickle.load(f)
@@ -54,7 +49,9 @@ Press 0 to use data from file, or any other button otherwise:
                     descriptors = self.descriptor.descriptors
 
                     try:
-                        matches = np.zeros((self.nfeatures, self.descriptor.desc_size))
+                        matches = np.zeros(
+                            (self.descriptor.nfeatures, self.descriptor.desc_size)
+                        )
                         for i in range(min(len(descriptors), len(matches))):
                             matches[i, :] = descriptors[i, :]
                         pure_data.append(matches.ravel() / 256)
@@ -79,17 +76,24 @@ Press 0 to use data from file, or any other button otherwise:
         try:
             self.descriptor.compute(frame)
             descriptors = self.descriptor.descriptors
-            dest_matches = np.zeros((self.nfeatures, self.descriptor.desc_size))
+            dest_matches = np.zeros(
+                (self.descriptor.nfeatures, self.descriptor.desc_size)
+            )
             for i in range(min(len(descriptors), len(dest_matches))):
                 dest_matches[i, :] = descriptors[i, :]
             pure_data = dest_matches.ravel() / 256
             return self.model.predict(np.expand_dims(pure_data, axis=0))
-        except:
+        except ZeroDivisionError:
             return 0
 
     def process_video(self, path_to_video, output_size, fps=30):
         cap = cv2.VideoCapture(path_to_video)
         images = []
+
+        fourcc = cv2.VideoWriter_fourcc(*"FMP4")
+        out = cv2.VideoWriter(
+            "results/" + self.descriptor.name + "_out.avi", fourcc, fps, output_size
+        )
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -109,19 +113,10 @@ Press 0 to use data from file, or any other button otherwise:
                 )
 
                 output_img = cv2.resize(frame, output_size)
-                images.append(output_img)
+                out.write(output_img)
             else:
                 break
 
-        fourcc = cv2.VideoWriter_fourcc(*"FMP4")
-        out = cv2.VideoWriter(
-            "results/" + self.descriptor.name + "_out.avi",
-            fourcc,
-            fps,
-            output_size
-        )
-        for frame in images:
-            out.write(frame)
         cap.release()
         out.release()
         cv2.destroyAllWindows()
