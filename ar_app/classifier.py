@@ -1,49 +1,79 @@
+import os
 import cv2
 import numpy as np
-from sklearn.model_selection import train_test_split
+import pickle
 
+from sklearn.model_selection import train_test_split
 from descriptors import ORB_Descriptor, SIFT_Descriptor, BRIEF_Descriptor
 from sklearn.tree import DecisionTreeClassifier
-import os
+from sklearn.naive_bayes import GaussianNB
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.ensemble import AdaBoostClassifier
 
 
 class Classifier:
-    def __init__(self, descriptor=ORB_Descriptor, nfeatures=500, classifier = DecisionTreeClassifier()):
+    def __init__(
+        self,
+        descriptor=ORB_Descriptor,
+        nfeatures=500,
+        classifier=MultinomialNB(),
+    ):
         self.descriptor = descriptor()
         self.nfeatures = nfeatures
         self.classifier = classifier
         self.model = None
 
     def fit(self, path_to_dir_with_obj, path_to_dir_without_obj):
-        pure_data = []
-        y = []
 
-        for ind, dir in enumerate([path_to_dir_without_obj, path_to_dir_with_obj]):
-            list_of_files = os.listdir(dir)
-            for file in list_of_files:
-                img = cv2.imread(dir + "/" + file)
-                self.descriptor.compute(img)
-                descriptors = self.descriptor.descriptors
+        try:
+            class RefitRequired(BaseException): pass
 
-                try:
-                    matches = np.zeros((self.nfeatures, self.descriptor.desc_size))
-                    for i in range(min(len(descriptors), len(matches))):
-                        matches[i, :] = descriptors[i, :]
-                    pure_data.append(matches.ravel() / 256)
-                    y.append(ind)
-                except:
-                    print(f"Bad frame!")
-        pure_data = np.array(pure_data)
-        y = np.array(y)
+            with open("fitted_model.pickle", "rb") as f:
+                model = pickle.load(f)
+            refit = input(
+                """
+We've found file with fitted model.
+Would you like to use it or refit model?
+Press 0 to use data from file, or any other button otherwise: 
+"""
+            )
+            if refit != "0":
+                raise RefitRequired
+            else:
+                self.model = model
+                return model
 
-        X_train, X_test, Y_train, Y_test = train_test_split(
-            pure_data, y, random_state=0, test_size=0.5
-        )
+        except (FileNotFoundError, RefitRequired):
+            pure_data = []
+            y = []
+            for ind, dir in enumerate([path_to_dir_without_obj, path_to_dir_with_obj]):
+                list_of_files = os.listdir(dir)
+                for file in list_of_files:
+                    img = cv2.imread(dir + "/" + file)
+                    self.descriptor.compute(img)
+                    descriptors = self.descriptor.descriptors
 
-        model = self.classifier
-        model.fit(X_train, Y_train)
-        self.model = model
-        return model
+                    try:
+                        matches = np.zeros((self.nfeatures, self.descriptor.desc_size))
+                        for i in range(min(len(descriptors), len(matches))):
+                            matches[i, :] = descriptors[i, :]
+                        pure_data.append(matches.ravel() / 256)
+                        y.append(ind)
+                    except:
+                        print(f"Bad frame!")
+            pure_data = np.array(pure_data)
+            y = np.array(y)
+
+            X_train, X_test, Y_train, Y_test = train_test_split(
+                pure_data, y, random_state=0, test_size=0.5
+            )
+
+            model = self.classifier
+            model.fit(X_train, Y_train)
+            with open("fitted_model.pickle", "wb") as f:
+                pickle.dump(model, f)
+            self.model = model
+            return model
 
     def predict(self, frame):
         try:
@@ -85,7 +115,10 @@ class Classifier:
 
         fourcc = cv2.VideoWriter_fourcc(*"FMP4")
         out = cv2.VideoWriter(
-            self.descriptor.name + "_out.avi", fourcc, fps, output_size
+            "results/" + self.descriptor.name + "_out.avi",
+            fourcc,
+            fps,
+            output_size
         )
         for frame in images:
             out.write(frame)
