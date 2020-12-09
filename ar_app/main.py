@@ -1,6 +1,7 @@
 from classifier import Classifier
 import cv2
 import numpy as np
+from datetime import datetime
 
 # available descriptor for Classifier
 from descriptors import ORB_Descriptor, SIFT_Descriptor
@@ -16,11 +17,13 @@ model = Classifier(descriptor=SIFT_Descriptor())
 model.fit("with_object", "without_object")
 # model.process_video("video_to_check.MOV", (640, 480), fps=30)
 
-cap = cv2.VideoCapture(2)
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
 cover_img = cv2.imread("img.jpg")
 myVid = cv2.VideoCapture("video.mp4")
 
-video_frame = cv2.imread("our_team_photo.jpg")
+video_frame = cv2.imread("img.jpg")
 height, width, _ = cover_img.shape
 video_frame = cv2.resize(video_frame, (width, height))
 
@@ -38,7 +41,18 @@ bf = cv2.BFMatcher()
 #     (640, 480)
 # )
 
+start_time_point = datetime.now()
+frame_counter = 0
+
 while True:
+
+    if (datetime.now() - start_time_point).seconds > 1:
+        start_time_point = datetime.now()
+        print(frame_counter)
+        frame_counter = 0
+    else:
+        frame_counter += 1
+
     sucess, imgWebcam = cap.read()
     imgAug = imgWebcam.copy()
     method.compute(imgAug)
